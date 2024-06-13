@@ -545,31 +545,18 @@ void BaseVirtualMachine::delete_snapshot(const std::string& name)
     mpl::log(mpl::Level::debug, vm_name, fmt::format("Snapshot deleted: {}", name));
 }
 
-template <typename... Args>
-void BaseVirtualMachine::load_snapshots_common(Args&&... args)
+void BaseVirtualMachine::load_snapshots()
 {
     const std::unique_lock lock{snapshot_mutex};
 
-    const auto snapshot_files = MP_FILEOPS.entryInfoList(instance_dir,
-                                                         {QString{"*.%1"}.arg(snapshot_extension)},
-                                                         QDir::Filter::Files | QDir::Filter::Readable,
-                                                         QDir::SortFlag::Name);
+    auto snapshot_files = MP_FILEOPS.entryInfoList(instance_dir,
+                                                   {QString{"*.%1"}.arg(snapshot_extension)},
+                                                   QDir::Filter::Files | QDir::Filter::Readable,
+                                                   QDir::SortFlag::Name);
     for (const auto& finfo : snapshot_files)
-        load_snapshot_and_optionally_update_unique_identifiers(finfo.filePath(), std::forward<Args>(args)...);
+        load_snapshot(finfo.filePath());
 
     load_generic_snapshot_info();
-}
-
-void BaseVirtualMachine::load_snapshots()
-{
-    load_snapshots_common();
-}
-
-void BaseVirtualMachine::load_snapshots_and_update_unique_identifiers(const VMSpecs& src_specs,
-                                                                      const VMSpecs& dest_specs,
-                                                                      const std::string& src_vm_name)
-{
-    load_snapshots_common(src_specs, dest_specs, src_vm_name);
 }
 
 std::vector<std::string> BaseVirtualMachine::get_childrens_names(const Snapshot* parent) const
@@ -622,11 +609,9 @@ void BaseVirtualMachine::log_latest_snapshot(LockT lock) const
     }
 }
 
-template <typename... Args>
-void BaseVirtualMachine::load_snapshot_and_optionally_update_unique_identifiers(const QString& file_path,
-                                                                                Args&&... args)
+void BaseVirtualMachine::load_snapshot(const QString& filename)
 {
-    const auto snapshot = make_specific_snapshot(file_path, std::forward<Args>(args)...);
+    const auto snapshot = make_specific_snapshot(filename);
     const auto& name = snapshot->get_name();
     const auto [_, success] = snapshots.try_emplace(name, snapshot);
 
@@ -780,13 +765,6 @@ void BaseVirtualMachine::drop_ssh_session()
         mpl::log(mpl::Level::debug, vm_name, "Dropping cached SSH session");
         ssh_session.reset();
     }
-}
-std::shared_ptr<Snapshot> BaseVirtualMachine::make_specific_snapshot(const QString& filename,
-                                                                     const VMSpecs& src_specs,
-                                                                     const VMSpecs& dest_specs,
-                                                                     const std::string& src_vm_name)
-{
-    throw NotImplementedOnThisBackendException{"Snapshots"};
 }
 
 } // namespace multipass
